@@ -33,7 +33,7 @@ body{
 h1{
     text-align:center;
     margin:0 0 8px;
-    font-size:25px;
+    font-size:24px;
 }
 
 .month{
@@ -58,8 +58,12 @@ h1{
     text-align:right;
 }
 
+h3{
+    margin-top:25px;
+}
+
 .attendance{
-    margin-top:20px;
+    margin-top:10px;
 }
 
 .day{
@@ -78,6 +82,7 @@ h1{
     color:#c00;
     text-align:center;
     line-height:1.6;
+    padding:20px;
 }
 
 </style>
@@ -159,32 +164,13 @@ Daily Attendance
 
 <script>
 
-/*
-==================================================
-AUTOMATIC EXCEL FILE DETECTION
-==================================================
-*/
+/* =========================================
+   GITHUB SETTINGS
+========================================= */
 
-const GITHUB_API =
-"https://api.github.com/repos/" +
-"vishal123456/September2026/contents/";
+const GITHUB_USER = "Vishal123456-oss";
 
-
-/*
-IMPORTANT:
-
-Your repository name is September2026.
-
-If your GitHub username is different,
-change ONLY the username below.
-*/
-
-const GITHUB_USER =
-"vishal123456";
-
-const GITHUB_REPO =
-"September2026";
-
+const GITHUB_REPO = "September2026";
 
 const API_URL =
 "https://api.github.com/repos/" +
@@ -194,26 +180,20 @@ GITHUB_REPO +
 "/contents/";
 
 
-/*
-==================================================
-GET EMPLOYEE ID
-==================================================
-*/
+/* =========================================
+   EMPLOYEE ID
+========================================= */
 
 const params =
-new URLSearchParams(
-window.location.search
-);
+new URLSearchParams(window.location.search);
 
 const employeeId =
 Number(params.get("id"));
 
 
-/*
-==================================================
-PAGE ELEMENTS
-==================================================
-*/
+/* =========================================
+   PAGE ELEMENTS
+========================================= */
 
 const loading =
 document.getElementById("loading");
@@ -228,30 +208,24 @@ const monthBox =
 document.getElementById("month");
 
 
-/*
-==================================================
-ERROR
-==================================================
-*/
+/* =========================================
+   ERROR FUNCTION
+========================================= */
 
 function showError(message){
 
-    loading.style.display =
-    "none";
+    loading.style.display = "none";
 
-    errorBox.style.display =
-    "block";
+    errorBox.style.display = "block";
 
-    errorBox.innerHTML =
-    "❌ " + message;
+    errorBox.innerHTML = "❌ " + message;
+
 }
 
 
-/*
-==================================================
-MONTH FROM EXCEL FILE NAME
-==================================================
-*/
+/* =========================================
+   MONTH FROM FILE NAME
+========================================= */
 
 function getMonthName(fileName){
 
@@ -268,501 +242,460 @@ function getMonthName(fileName){
 
     }
 
-    const month =
-    match[1];
-
-    const year =
-    match[2];
-
     return (
-        month.toUpperCase() +
+        match[1].toUpperCase() +
         " " +
-        year
+        match[2]
     );
+
 }
 
 
-/*
-==================================================
-CHECK EMPLOYEE ID
-==================================================
-*/
+/* =========================================
+   CHECK EMPLOYEE ID
+========================================= */
 
 if(!employeeId || employeeId < 1){
 
     showError(
         "Employee ID missing.<br><br>" +
-        "Example:<br>" +
+        "Use this format:<br>" +
         "employee.html?id=1"
     );
 
 }
 
 
-/*
-==================================================
-FIND EXCEL FILE AUTOMATICALLY
-==================================================
-*/
+/* =========================================
+   LOAD GITHUB FILE LIST
+========================================= */
 
 else{
 
-    fetch(API_URL)
+fetch(
+    API_URL +
+    "?v=" +
+    Date.now()
+)
 
-    .then(response => {
+.then(response => {
 
-        if(!response.ok){
+    if(!response.ok){
 
-            throw new Error(
-                "Could not access GitHub repository."
-            );
+        throw new Error(
+            "Could not access GitHub repository."
+        );
+
+    }
+
+    return response.json();
+
+})
+
+
+/* =========================================
+   FIND EXCEL FILE
+========================================= */
+
+.then(files => {
+
+    const excelFiles =
+    files.filter(file =>
+
+        file.type === "file" &&
+        file.name
+        .toLowerCase()
+        .endsWith(".xlsx")
+
+    );
+
+
+    if(excelFiles.length === 0){
+
+        throw new Error(
+            "No Excel (.xlsx) file found in repository."
+        );
+
+    }
+
+
+    /*
+       IMPORTANT:
+       Keep only ONE Excel file
+       in this repository.
+    */
+
+    const excelFile =
+    excelFiles[0];
+
+
+    /*
+       Show month automatically
+    */
+
+    monthBox.innerText =
+    "MONTH: " +
+    getMonthName(
+        excelFile.name
+    );
+
+
+    /*
+       Download Excel
+    */
+
+    return fetch(
+        excelFile.download_url +
+        "?v=" +
+        Date.now()
+    );
+
+})
+
+
+/* =========================================
+   READ EXCEL
+========================================= */
+
+.then(response => {
+
+    if(!response.ok){
+
+        throw new Error(
+            "Excel file could not be downloaded."
+        );
+
+    }
+
+    return response.arrayBuffer();
+
+})
+
+
+.then(buffer => {
+
+    const workbook =
+    XLSX.read(
+        buffer,
+        {
+            type:"array"
+        }
+    );
+
+
+    /* =====================================
+       FIND ATTENDANCE SHEET
+    ===================================== */
+
+    let sheetName =
+    workbook.SheetNames.find(
+        name =>
+        name
+        .toLowerCase()
+        .includes("attendance")
+    );
+
+
+    /*
+       If no Attendance sheet,
+       use first sheet.
+    */
+
+    if(!sheetName){
+
+        sheetName =
+        workbook.SheetNames[0];
+
+    }
+
+
+    const sheet =
+    workbook.Sheets[sheetName];
+
+
+    if(!sheet){
+
+        throw new Error(
+            "Attendance sheet not found."
+        );
+
+    }
+
+
+    /* =====================================
+       CONVERT EXCEL TO ROWS
+    ===================================== */
+
+    const rows =
+    XLSX.utils.sheet_to_json(
+        sheet,
+        {
+            header:1,
+            defval:""
+        }
+    );
+
+
+    /*
+       YOUR EXCEL STRUCTURE:
+
+       Excel row 5 = Employee 1
+       Excel row 6 = Employee 2
+       Excel row 7 = Employee 3
+
+       Therefore:
+
+       Employee ID 1 -> rows[4]
+       Employee ID 2 -> rows[5]
+
+       Formula:
+       employeeId + 3
+    */
+
+    const rowIndex =
+    employeeId + 3;
+
+
+    const row =
+    rows[rowIndex];
+
+
+    if(!row || !row[0]){
+
+        throw new Error(
+            "Employee ID " +
+            employeeId +
+            " was not found."
+        );
+
+    }
+
+
+    /* =====================================
+       EMPLOYEE DATA
+    ===================================== */
+
+    const name =
+    String(row[0]).trim();
+
+
+    const wage =
+    Number(row[1]) || 0;
+
+
+    /* =====================================
+       ATTENDANCE C:AG
+       31 DAYS
+    ===================================== */
+
+    const attendance =
+    row.slice(2,33);
+
+
+    /* =====================================
+       CALCULATE PRESENT DAYS
+    ===================================== */
+
+    let presentDays = 0;
+
+    attendance.forEach(status => {
+
+        status =
+        String(status)
+        .trim()
+        .toUpperCase();
+
+
+        if(
+            status === "P" ||
+            status.startsWith("P+")
+        ){
+
+            presentDays += 1;
 
         }
 
-        return response.json();
 
-    })
+        else if(
+            status === "H" ||
+            status.startsWith("H+")
+        ){
+
+            presentDays += 0.5;
+
+        }
+
+    });
 
 
-    .then(files => {
+    /* =====================================
+       CALCULATE OT HOURS
+    ===================================== */
 
-        /*
-        Find Excel files
-        */
+    let otHours = 0;
 
-        const excelFiles =
-        files.filter(file =>
-            file.name
-            .toLowerCase()
-            .endsWith(".xlsx")
+    attendance.forEach(status => {
+
+        status =
+        String(status)
+        .trim()
+        .toUpperCase();
+
+
+        const match =
+        status.match(
+            /\+(\d+(?:\.\d+)?)/
         );
 
 
-        if(excelFiles.length === 0){
+        if(match){
 
-            throw new Error(
-                "No Excel (.xlsx) file found."
-            );
-
-        }
-
-
-        /*
-        We use the first/only Excel file.
-        Keep only ONE active Excel file
-        in the repository.
-        */
-
-        const excelFile =
-        excelFiles[0];
-
-
-        const fileName =
-        excelFile.name;
-
-
-        /*
-        Show month automatically
-        */
-
-        monthBox.innerText =
-        "MONTH: " +
-        getMonthName(fileName);
-
-
-        /*
-        Load Excel
-        */
-
-        return fetch(
-            excelFile.download_url +
-            "?v=" +
-            Date.now()
-        );
-
-    })
-
-
-    .then(response => {
-
-        if(!response.ok){
-
-            throw new Error(
-                "Excel file could not be downloaded."
-            );
+            otHours +=
+            Number(match[1]);
 
         }
 
-        return response.arrayBuffer();
-
-    })
+    });
 
 
-    .then(buffer => {
+    /* =====================================
+       OT WAGES
 
-        /*
-        Open Excel
-        */
+       1 hour OT =
+       Daily wage / 8
+    ===================================== */
 
-        const workbook =
-        XLSX.read(
-            buffer,
-            {
-                type:"array"
-            }
-        );
+    const otRate =
+    wage / 8;
 
 
-        /*
-        Automatically find Attendance sheet.
-
-        It looks for a sheet containing
-        the word "Attendance".
-        */
-
-        let sheetName =
-        workbook.SheetNames.find(
-            name =>
-            name
-            .toLowerCase()
-            .includes("attendance")
-        );
+    const otWages =
+    otHours * otRate;
 
 
-        /*
-        If no attendance sheet is found,
-        use the first sheet.
-        */
+    /* =====================================
+       MONTHLY WAGE
 
-        if(!sheetName){
+       Present wage + OT wage
+    ===================================== */
 
-            sheetName =
-            workbook.SheetNames[0];
-
-        }
+    const monthlyWage =
+    (presentDays * wage) +
+    otWages;
 
 
-        const sheet =
-        workbook.Sheets[sheetName];
+    /* =====================================
+       DISPLAY EMPLOYEE DATA
+    ===================================== */
+
+    document.getElementById("name")
+    .textContent =
+    name;
 
 
-        if(!sheet){
-
-            throw new Error(
-                "Attendance sheet not found."
-            );
-
-        }
+    document.getElementById("wage")
+    .textContent =
+    wage.toFixed(2);
 
 
-        /*
-        Convert Excel to rows
-        */
+    document.getElementById("present")
+    .textContent =
+    presentDays;
 
-        const rows =
-        XLSX.utils.sheet_to_json(
-            sheet,
-            {
-                header:1,
-                defval:""
-            }
+
+    document.getElementById("ot")
+    .textContent =
+    otHours;
+
+
+    document.getElementById("otwage")
+    .textContent =
+    otWages.toFixed(2);
+
+
+    document.getElementById("monthly")
+    .textContent =
+    monthlyWage.toFixed(2);
+
+
+    /* =====================================
+       DAILY ATTENDANCE
+    ===================================== */
+
+    const attendanceBox =
+    document.getElementById(
+        "attendance"
+    );
+
+
+    attendanceBox.innerHTML = "";
+
+
+    attendance.forEach(
+    (status,index) => {
+
+        status =
+        String(status).trim();
+
+
+        const day =
+        document.createElement(
+            "div"
         );
 
 
-        /*
-        Employee rows:
+        day.className =
+        "day";
 
-        Excel Row 5 = Employee ID 1
-        Excel Row 6 = Employee ID 2
-        Excel Row 7 = Employee ID 3
 
-        Therefore:
+        day.innerHTML =
+        "<span>Day " +
+        (index + 1) +
+        "</span>" +
 
-        Array index =
-        employee ID + 3
-        */
+        "<strong>" +
+        (status || "-") +
+        "</strong>";
 
-        const rowIndex =
-        employeeId + 3;
 
-
-        const row =
-        rows[rowIndex];
-
-
-        if(!row || !row[0]){
-
-            throw new Error(
-                "Employee ID " +
-                employeeId +
-                " not found."
-            );
-
-        }
-
-
-        /*
-        ==========================================
-        EMPLOYEE INFORMATION
-        ==========================================
-        */
-
-        const name =
-        String(row[0])
-        .trim();
-
-
-        const wage =
-        Number(row[1]) || 0;
-
-
-        /*
-        ==========================================
-        ATTENDANCE
-
-        C:AG = 31 days
-        ==========================================
-        */
-
-        const attendance =
-        row.slice(2,33);
-
-
-        /*
-        ==========================================
-        TOTALS
-
-        AH = Present Days
-        AI = OT Hours
-        AJ = OT Wages
-        AK = Monthly Wage
-        ==========================================
-        */
-
-        let presentDays =
-        Number(row[33]) || 0;
-
-
-        let otHours =
-        Number(row[34]) || 0;
-
-
-        let otWages =
-        Number(row[35]) || 0;
-
-
-        let monthlyWage =
-        Number(row[36]) || 0;
-
-
-        /*
-        ==========================================
-        BACKUP CALCULATION
-        ==========================================
-        */
-
-        if(!presentDays){
-
-            presentDays = 0;
-
-            attendance.forEach(
-            status => {
-
-                status =
-                String(status)
-                .trim()
-                .toUpperCase();
-
-
-                if(
-                    status === "P" ||
-                    status.startsWith("P+")
-                ){
-
-                    presentDays += 1;
-
-                }
-
-
-                else if(
-                    status === "H" ||
-                    status.startsWith("H+")
-                ){
-
-                    presentDays += 0.5;
-
-                }
-
-            });
-
-        }
-
-
-        if(!otHours){
-
-            otHours = 0;
-
-            attendance.forEach(
-            status => {
-
-                status =
-                String(status)
-                .trim()
-                .toUpperCase();
-
-
-                const match =
-                status.match(
-                    /\+(\d+(?:\.\d+)?)/
-                );
-
-
-                if(match){
-
-                    otHours +=
-                    Number(match[1]);
-
-                }
-
-            });
-
-        }
-
-
-        if(!otWages){
-
-            otWages =
-            otHours *
-            (wage / 8);
-
-        }
-
-
-        if(!monthlyWage){
-
-            monthlyWage =
-            (presentDays * wage) +
-            otWages;
-
-        }
-
-
-        /*
-        ==========================================
-        DISPLAY
-        ==========================================
-        */
-
-        document.getElementById("name")
-        .textContent =
-        name;
-
-
-        document.getElementById("wage")
-        .textContent =
-        wage.toFixed(2);
-
-
-        document.getElementById("present")
-        .textContent =
-        presentDays;
-
-
-        document.getElementById("ot")
-        .textContent =
-        otHours;
-
-
-        document.getElementById("otwage")
-        .textContent =
-        otWages.toFixed(2);
-
-
-        document.getElementById("monthly")
-        .textContent =
-        monthlyWage.toFixed(2);
-
-
-        /*
-        ==========================================
-        DAILY ATTENDANCE
-        ==========================================
-        */
-
-        const attendanceBox =
-        document.getElementById(
-            "attendance"
-        );
-
-
-        attendanceBox.innerHTML =
-        "";
-
-
-        attendance.forEach(
-        (status,index) => {
-
-            status =
-            String(status)
-            .trim();
-
-
-            const day =
-            document.createElement(
-                "div"
-            );
-
-
-            day.className =
-            "day";
-
-
-            day.innerHTML =
-            "<span>Day " +
-            (index + 1) +
-            "</span>" +
-
-            "<strong>" +
-            (status || "-") +
-            "</strong>";
-
-
-            attendanceBox.appendChild(
-                day
-            );
-
-        });
-
-
-        /*
-        ==========================================
-        SHOW PAGE
-        ==========================================
-        */
-
-        loading.style.display =
-        "none";
-
-
-        dataBox.style.display =
-        "block";
-
-    })
-
-
-    .catch(error => {
-
-        console.error(error);
-
-        showError(
-            error.message
+        attendanceBox.appendChild(
+            day
         );
 
     });
+
+
+    /* =====================================
+       SHOW DATA
+    ===================================== */
+
+    loading.style.display =
+    "none";
+
+    dataBox.style.display =
+    "block";
+
+})
+
+
+/* =========================================
+   FINAL ERROR
+========================================= */
+
+.catch(error => {
+
+    console.error(error);
+
+    showError(
+        error.message
+    );
+
+});
 
 }
 
 </script>
 
 </body>
-    </html>
+
+      </html>
