@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Employee Attendance</title>
+<title>Employee Attendance & Wage System</title>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
@@ -27,7 +27,14 @@ body{
 
 h1{
     text-align:center;
-    margin-bottom:20px;
+    margin:0 0 8px;
+    font-size:25px;
+}
+
+.subtitle{
+    text-align:center;
+    color:#666;
+    margin-bottom:25px;
 }
 
 .row{
@@ -73,7 +80,11 @@ h1{
 
 <div class="card">
 
-<h1>Employee Attendance</h1>
+<h1>Employee Attendance & Wage System</h1>
+
+<div class="subtitle">
+Monthly Attendance & Salary Details
+</div>
 
 <div id="loading" class="loading">
 Loading employee data...
@@ -120,18 +131,25 @@ Loading employee data...
 </div>
 </div>
 
-
 <script>
 
 const EXCEL_FILE = "September2026.xlsx";
 const SHEET_NAME = "September Attendance";
 
-const params = new URLSearchParams(window.location.search);
-const employeeId = Number(params.get("id"));
+const params =
+new URLSearchParams(window.location.search);
 
-const loading = document.getElementById("loading");
-const errorBox = document.getElementById("error");
-const dataBox = document.getElementById("data");
+const employeeId =
+Number(params.get("id"));
+
+const loading =
+document.getElementById("loading");
+
+const errorBox =
+document.getElementById("error");
+
+const dataBox =
+document.getElementById("data");
 
 
 function showError(message){
@@ -149,7 +167,7 @@ if(!employeeId || employeeId < 1){
     showError(
         "Employee ID missing.<br><br>" +
         "Example:<br>" +
-        "employee.html?id=2"
+        "employee.html?id=1"
     );
 
 }
@@ -160,32 +178,39 @@ else{
     .then(response => {
 
         if(!response.ok){
+
             throw new Error(
-                "Excel file not found.<br>" +
-                "File: " + EXCEL_FILE
+                "Excel file not found."
             );
+
         }
 
         return response.arrayBuffer();
+
     })
 
     .then(buffer => {
 
-        const workbook = XLSX.read(buffer,{
+        const workbook =
+        XLSX.read(buffer,{
             type:"array"
         });
 
-        const sheet = workbook.Sheets[SHEET_NAME];
+        const sheet =
+        workbook.Sheets[SHEET_NAME];
 
         if(!sheet){
 
             throw new Error(
-                "Sheet not found:<br>" +
-                SHEET_NAME
+                "Sheet '" +
+                SHEET_NAME +
+                "' not found."
             );
+
         }
 
-        const rows = XLSX.utils.sheet_to_json(
+        const rows =
+        XLSX.utils.sheet_to_json(
             sheet,
             {
                 header:1,
@@ -193,69 +218,67 @@ else{
             }
         );
 
+
         /*
-        Employee rows:
-
-        Row 5  = ID 1
-        Row 6  = ID 2
-        Row 7  = ID 3
-        ...
-        Row 20 = ID 16
-
-        Excel array index is one less.
+        Employee 1 = Excel row 5
+        Employee 2 = Excel row 6
+        Employee 3 = Excel row 7
         */
 
-        const excelRowIndex = employeeId + 3;
+        const excelRowIndex =
+        employeeId + 3;
 
-        const row = rows[excelRowIndex];
+        const row =
+        rows[excelRowIndex];
+
 
         if(!row || !row[0]){
 
             throw new Error(
-                "Employee not found for ID: " +
+                "Employee not found for ID " +
                 employeeId
             );
+
         }
 
 
-        const name = String(row[0]).trim();
+        const name =
+        String(row[0]).trim();
 
-        const wage = Number(row[1]) || 0;
+        const wage =
+        Number(row[1]) || 0;
 
 
         /*
         C:AG = 31 attendance days
-
-        JavaScript array:
-
-        C = index 2
-        AG = index 32
         */
 
-        const attendance = row.slice(2,33);
+        const attendance =
+        row.slice(2,33);
 
 
         /*
-        Read calculated values from Excel:
-
-        AH = index 33
-        AI = index 34
-        AJ = index 35
-        AK = index 36
+        AH = Present Days
+        AI = OT Hours
+        AJ = OT Wages
+        AK = Monthly Wage
         */
 
-        let presentDays = Number(row[33]) || 0;
+        let presentDays =
+        Number(row[33]) || 0;
 
-        let otHours = Number(row[34]) || 0;
+        let otHours =
+        Number(row[34]) || 0;
 
-        let otWages = Number(row[35]) || 0;
+        let otWages =
+        Number(row[35]) || 0;
 
-        let monthlyWage = Number(row[36]) || 0;
+        let monthlyWage =
+        Number(row[36]) || 0;
 
 
         /*
-        If Excel formula values are unavailable,
-        calculate them from attendance.
+        Backup calculation
         */
 
         if(!presentDays){
@@ -265,9 +288,9 @@ else{
             attendance.forEach(status => {
 
                 status =
-                    String(status)
-                    .trim()
-                    .toUpperCase();
+                String(status)
+                .trim()
+                .toUpperCase();
 
                 if(status.startsWith("P")){
                     presentDays += 1;
@@ -289,15 +312,16 @@ else{
             attendance.forEach(status => {
 
                 status =
-                    String(status)
-                    .trim()
-                    .toUpperCase();
+                String(status)
+                .trim()
+                .toUpperCase();
 
                 const match =
-                    status.match(/\+(\d+)/);
+                status.match(/\+(\d+)/);
 
                 if(match){
-                    otHours += Number(match[1]);
+                    otHours +=
+                    Number(match[1]);
                 }
 
             });
@@ -306,46 +330,48 @@ else{
 
 
         if(!otWages){
+
             otWages =
-                otHours * (wage / 8);
+            otHours * (wage / 8);
+
         }
 
 
         if(!monthlyWage){
 
             monthlyWage =
-                (presentDays * wage) +
-                otWages;
+            (presentDays * wage) +
+            otWages;
 
         }
 
 
         /*
-        Show employee information
+        Display employee data
         */
 
         document.getElementById("name")
-            .textContent = name;
+        .textContent = name;
 
         document.getElementById("wage")
-            .textContent =
-            wage.toFixed(2);
+        .textContent =
+        wage.toFixed(2);
 
         document.getElementById("present")
-            .textContent =
-            presentDays;
+        .textContent =
+        presentDays;
 
         document.getElementById("ot")
-            .textContent =
-            otHours;
+        .textContent =
+        otHours;
 
         document.getElementById("otwage")
-            .textContent =
-            otWages.toFixed(2);
+        .textContent =
+        otWages.toFixed(2);
 
         document.getElementById("monthly")
-            .textContent =
-            monthlyWage.toFixed(2);
+        .textContent =
+        monthlyWage.toFixed(2);
 
 
         /*
@@ -353,7 +379,7 @@ else{
         */
 
         const attendanceBox =
-            document.getElementById("attendance");
+        document.getElementById("attendance");
 
         attendanceBox.innerHTML = "";
 
@@ -361,32 +387,32 @@ else{
         attendance.forEach((status,index) => {
 
             status =
-                String(status).trim();
+            String(status).trim();
 
             const day =
-                document.createElement("div");
+            document.createElement("div");
 
             day.className = "day";
 
-            const dayNumber = index + 1;
-
             day.innerHTML =
-                "<span>Day " +
-                dayNumber +
-                "</span>" +
+            "<span>Day " +
+            (index + 1) +
+            "</span>" +
 
-                "<strong>" +
-                (status || "-") +
-                "</strong>";
+            "<strong>" +
+            (status || "-") +
+            "</strong>";
 
             attendanceBox.appendChild(day);
 
         });
 
 
-        loading.style.display = "none";
+        loading.style.display =
+        "none";
 
-        dataBox.style.display = "block";
+        dataBox.style.display =
+        "block";
 
     })
 
@@ -404,4 +430,4 @@ else{
 </script>
 
 </body>
-  </html>
+</html>
