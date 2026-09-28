@@ -209,7 +209,7 @@ document.getElementById("month");
 
 
 /* =========================================
-   ERROR FUNCTION
+   ERROR
 ========================================= */
 
 function showError(message){
@@ -224,10 +224,10 @@ function showError(message){
 
 
 /* =========================================
-   MONTH FROM FILE NAME
+   GET MONTH + YEAR
 ========================================= */
 
-function getMonthName(fileName){
+function getMonthInfo(fileName){
 
     const match =
     fileName.match(
@@ -236,17 +236,84 @@ function getMonthName(fileName){
 
     if(!match){
 
-        return fileName
-        .replace(".xlsx","")
-        .toUpperCase();
+        throw new Error(
+            "Excel filename must be like September2026.xlsx"
+        );
 
     }
 
-    return (
-        match[1].toUpperCase() +
-        " " +
-        match[2]
-    );
+    const monthName =
+    match[1];
+
+    const year =
+    Number(match[2]);
+
+
+    const monthNames = {
+
+        january:0,
+        february:1,
+        march:2,
+        april:3,
+        may:4,
+        june:5,
+        july:6,
+        august:7,
+        september:8,
+        october:9,
+        november:10,
+        december:11
+
+    };
+
+
+    const monthNumber =
+    monthNames[
+        monthName.toLowerCase()
+    ];
+
+
+    if(monthNumber === undefined){
+
+        throw new Error(
+            "Invalid month in Excel filename."
+        );
+
+    }
+
+
+    /*
+       Calculate actual number of days.
+
+       Example:
+
+       September 2026
+       = 30
+
+       February 2028
+       = 29
+    */
+
+    const daysInMonth =
+    new Date(
+        year,
+        monthNumber + 1,
+        0
+    ).getDate();
+
+
+    return {
+
+        monthName:
+        monthName.toUpperCase(),
+
+        year:
+        year,
+
+        days:
+        daysInMonth
+
+    };
 
 }
 
@@ -259,7 +326,7 @@ if(!employeeId || employeeId < 1){
 
     showError(
         "Employee ID missing.<br><br>" +
-        "Use this format:<br>" +
+        "Example:<br>" +
         "employee.html?id=1"
     );
 
@@ -313,16 +380,15 @@ fetch(
     if(excelFiles.length === 0){
 
         throw new Error(
-            "No Excel (.xlsx) file found in repository."
+            "No Excel (.xlsx) file found."
         );
 
     }
 
 
     /*
-       IMPORTANT:
        Keep only ONE Excel file
-       in this repository.
+       in repository.
     */
 
     const excelFile =
@@ -330,14 +396,24 @@ fetch(
 
 
     /*
-       Show month automatically
+       Get month information
+    */
+
+    const monthInfo =
+    getMonthInfo(
+        excelFile.name
+    );
+
+
+    /*
+       Show month and days
     */
 
     monthBox.innerText =
     "MONTH: " +
-    getMonthName(
-        excelFile.name
-    );
+    monthInfo.monthName +
+    " " +
+    monthInfo.year;
 
 
     /*
@@ -348,31 +424,51 @@ fetch(
         excelFile.download_url +
         "?v=" +
         Date.now()
-    );
+    )
+
+    .then(response => {
+
+        if(!response.ok){
+
+            throw new Error(
+                "Excel file could not be downloaded."
+            );
+
+        }
+
+        return response.arrayBuffer();
+
+    })
+
+    .then(buffer => {
+
+        return {
+
+            buffer:
+            buffer,
+
+            monthInfo:
+            monthInfo
+
+        };
+
+    });
 
 })
 
 
 /* =========================================
-   READ EXCEL
+   OPEN EXCEL
 ========================================= */
 
-.then(response => {
+.then(result => {
 
-    if(!response.ok){
+    const buffer =
+    result.buffer;
 
-        throw new Error(
-            "Excel file could not be downloaded."
-        );
+    const monthInfo =
+    result.monthInfo;
 
-    }
-
-    return response.arrayBuffer();
-
-})
-
-
-.then(buffer => {
 
     const workbook =
     XLSX.read(
@@ -383,9 +479,9 @@ fetch(
     );
 
 
-    /* =====================================
-       FIND ATTENDANCE SHEET
-    ===================================== */
+    /*
+       Find Attendance sheet
+    */
 
     let sheetName =
     workbook.SheetNames.find(
@@ -395,11 +491,6 @@ fetch(
         .includes("attendance")
     );
 
-
-    /*
-       If no Attendance sheet,
-       use first sheet.
-    */
 
     if(!sheetName){
 
@@ -422,9 +513,9 @@ fetch(
     }
 
 
-    /* =====================================
-       CONVERT EXCEL TO ROWS
-    ===================================== */
+    /*
+       Convert Excel to rows
+    */
 
     const rows =
     XLSX.utils.sheet_to_json(
@@ -437,19 +528,9 @@ fetch(
 
 
     /*
-       YOUR EXCEL STRUCTURE:
-
-       Excel row 5 = Employee 1
-       Excel row 6 = Employee 2
-       Excel row 7 = Employee 3
-
-       Therefore:
-
-       Employee ID 1 -> rows[4]
-       Employee ID 2 -> rows[5]
-
-       Formula:
-       employeeId + 3
+       Employee ID 1 = Excel row 5
+       Employee ID 2 = Excel row 6
+       etc.
     */
 
     const rowIndex =
@@ -465,14 +546,14 @@ fetch(
         throw new Error(
             "Employee ID " +
             employeeId +
-            " was not found."
+            " not found."
         );
 
     }
 
 
     /* =====================================
-       EMPLOYEE DATA
+       EMPLOYEE INFORMATION
     ===================================== */
 
     const name =
@@ -484,12 +565,28 @@ fetch(
 
 
     /* =====================================
-       ATTENDANCE C:AG
-       31 DAYS
+       ACTUAL DAYS ONLY
     ===================================== */
 
+    const totalDays =
+    monthInfo.days;
+
+
+    /*
+       C = Excel index 2
+
+       If September = 30 days:
+
+       C:AF = 30 attendance cells
+
+       AG = day 31 and is NOT read.
+    */
+
     const attendance =
-    row.slice(2,33);
+    row.slice(
+        2,
+        2 + totalDays
+    );
 
 
     /* =====================================
@@ -497,6 +594,7 @@ fetch(
     ===================================== */
 
     let presentDays = 0;
+
 
     attendance.forEach(status => {
 
@@ -534,6 +632,7 @@ fetch(
 
     let otHours = 0;
 
+
     attendance.forEach(status => {
 
         status =
@@ -559,10 +658,9 @@ fetch(
 
 
     /* =====================================
-       OT WAGES
+       OT WAGE
 
-       1 hour OT =
-       Daily wage / 8
+       1 hour = Daily Wage / 8
     ===================================== */
 
     const otRate =
@@ -575,8 +673,6 @@ fetch(
 
     /* =====================================
        MONTHLY WAGE
-
-       Present wage + OT wage
     ===================================== */
 
     const monthlyWage =
@@ -585,7 +681,7 @@ fetch(
 
 
     /* =====================================
-       DISPLAY EMPLOYEE DATA
+       DISPLAY DATA
     ===================================== */
 
     document.getElementById("name")
@@ -619,7 +715,7 @@ fetch(
 
 
     /* =====================================
-       DAILY ATTENDANCE
+       DISPLAY ONLY ACTUAL DAYS
     ===================================== */
 
     const attendanceBox =
@@ -628,7 +724,8 @@ fetch(
     );
 
 
-    attendanceBox.innerHTML = "";
+    attendanceBox.innerHTML =
+    "";
 
 
     attendance.forEach(
@@ -666,11 +763,12 @@ fetch(
 
 
     /* =====================================
-       SHOW DATA
+       SHOW PAGE
     ===================================== */
 
     loading.style.display =
     "none";
+
 
     dataBox.style.display =
     "block";
@@ -679,7 +777,7 @@ fetch(
 
 
 /* =========================================
-   FINAL ERROR
+   ERROR
 ========================================= */
 
 .catch(error => {
